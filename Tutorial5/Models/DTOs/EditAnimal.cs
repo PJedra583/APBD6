@@ -1,9 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
-
 namespace Tutorial5.Models.DTOs;
+using System.ComponentModel.DataAnnotations;
 
-public class AddAnimal
+public class EditAnimal
 {
+    
     [Required]
     public int Id { get; set; }
     [Required]
@@ -20,5 +20,4 @@ public class AddAnimal
     [MinLength(3)]
     [MaxLength(200)]
     public string Area { get; set; }
-    
 }
