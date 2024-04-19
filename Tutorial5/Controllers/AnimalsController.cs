@@ -19,12 +19,15 @@ public class AnimalsController : ControllerBase
     [HttpGet]
     public IActionResult GetAnimals(string? OrderBy = null)
     {
-        OrderBy = OrderBy.ToLower();
-        string regexPattern = "^(name|description|category|area)$";
-        bool isMatch = Regex.IsMatch(OrderBy, regexPattern);
-        if (!isMatch)
+        if (OrderBy != null)
         {
-            return BadRequest("Avaible parameters: name, description, category, area");
+            OrderBy = OrderBy.ToLower();
+            string regexPattern = "^(name|description|category|area)$";
+            bool isMatch = Regex.IsMatch(OrderBy, regexPattern);
+            if (!isMatch)
+            {
+                return BadRequest("Avaible parameters: name, description, category, area");
+            }
         }
         // Uruchamiamy połączenie do bazy
         using SqlConnection connection = new SqlConnection(_configuration.GetConnectionString("Default"));
@@ -35,12 +38,12 @@ public class AnimalsController : ControllerBase
         command.Connection = connection;
         if (OrderBy == null)
         {
-            command.CommandText = "SELECT * FROM Animal order by {Name}";
+            command.CommandText = "SELECT * FROM Animal order by Name";
         }
         else
         {
             //Protected from sql injection above
-            command.CommandText = "SELECT * FROM Animal order by OrderBy";
+            command.CommandText = "SELECT * FROM Animal order by " + OrderBy;
         }
         // Uruchomienie zapytania
         var reader = command.ExecuteReader();
@@ -57,7 +60,15 @@ public class AnimalsController : ControllerBase
         {
             int idAnimal = reader.GetInt32(idAnimalOrdinal);
             string nameAnimal = reader.GetString(NameOrdinal);
-            string descriptionAnimal = reader.GetString(DescriptionOrdinal);
+            string descriptionAnimal;
+            if (reader.IsDBNull(DescriptionOrdinal))
+            {
+                descriptionAnimal = "";
+            }
+            else
+            {
+                descriptionAnimal = reader.GetString(DescriptionOrdinal);
+            }
             string categoryAnimal = reader.GetString(categoryOrdinal);
             string area = reader.GetString(areaOrdinal);
             animals.Add(new Animal(idAnimal,nameAnimal,descriptionAnimal,categoryAnimal,area));
@@ -88,6 +99,7 @@ public class AnimalsController : ControllerBase
         
         // Wykonanie commanda
         command.ExecuteNonQuery();
+        connection.Close();
         return Created("Created an Animal", null);
     }
 
@@ -97,38 +109,40 @@ public class AnimalsController : ControllerBase
         using SqlConnection con = new SqlConnection(_configuration.GetConnectionString("Default"));
         con.Open();
         using SqlCommand cmd = new SqlCommand();
-        cmd.CommandText = "SELECT {IdAnimal} FROM Animal where {IdAnimal} = @idAnimal";
+        cmd.Connection = con;
+        cmd.CommandText = "SELECT IdAnimal FROM Animal where IdAnimal = @idAnimal";
         cmd.Parameters.AddWithValue("@idAnimal", idAnimal);
         var reader = cmd.ExecuteReader();
-        reader.Read();
-        if (idAnimal == reader.GetInt32(0))
+        if (reader.Read())
         {
+            reader.Close();
             cmd.CommandText =
-                "UPDATE Animal SET {Name} = @animalName, {Description} = @animalDescription, {Category} = @animalCategory, {area} = @animalArea  WHERE {idanimal} = @animalId";
+                "UPDATE Animal SET Name = @animalName, Description = @animalDescription, Category = @animalCategory, area = @animalArea  WHERE idanimal = @idAnimal";
             cmd.Parameters.AddWithValue("@animalName", editAnimal.Name);
-            cmd.Parameters.AddWithValue("@animalId", editAnimal.Id);
             cmd.Parameters.AddWithValue("@animalDescription", editAnimal.Description);
             cmd.Parameters.AddWithValue("@animalCategory", editAnimal.Category);
             cmd.Parameters.AddWithValue("@animalArea", editAnimal.Area);
             cmd.ExecuteNonQuery();
             return Ok();
         }
+        con.Close();
         return BadRequest("No such ID");
     }
 
     [HttpDelete("{idAnimal}")]
-    public IActionResult deleteAnimal(int id)
+    public IActionResult deleteAnimal(int idAnimal)
     {
         using SqlConnection con = new SqlConnection(_configuration.GetConnectionString("Default"));
         con.Open();
         using SqlCommand cmd = new SqlCommand();
-        cmd.CommandText = "DELETE FROM Animal where {idanimal} = @idanimal";
-        cmd.Parameters.AddWithValue("@animalId", id);
+        cmd.Connection = con;
+        cmd.CommandText = "DELETE FROM Animal where idanimal = @animalId";
+        cmd.Parameters.AddWithValue("@animalId", idAnimal);
         if (cmd.ExecuteNonQuery() > 0)
         {
             return Ok();
         }
-
-        return BadRequest();
+        con.Close();
+        return BadRequest("No such id");
     }
 }
